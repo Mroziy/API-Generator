@@ -1,0 +1,47 @@
+import requests
+import json
+
+def generate_api_client(spec_file, output_file):
+    # Load the OpenAPI specification file
+    with open(spec_file, 'r') as f:
+        spec_data = json.load(f)
+    
+    # Extract relevant information from the specification
+    api_title = spec_data.get('info', {}).get('title')
+    api_version = spec_data.get('info', {}).get('version')
+    base_url = spec_data.get('servers', [{}])[0].get('url')
+    endpoints = spec_data.get('paths')
+    
+    # Generate the API client code
+    code = f'''
+import requests
+
+class {api_title.replace(" ", "")}APIClient:
+    def __init__(self):
+        self.base_url = "{base_url.rstrip('/')}"
+    
+    def make_request(self, method, path, params=None, headers=None, data=None, auth=None):
+        url = self.base_url + path
+        response = requests.request(method, url, params=params, headers=headers, json=data, auth=auth)
+        response.raise_for_status()
+        return response.json()
+'''
+
+    for endpoint, methods in endpoints.items():
+        for method, details in methods.items():
+            operation_id = details.get('operationId')
+            code += f'''
+    def {operation_id}(self, params=None, headers=None, data=None, auth=None):
+        path = "{endpoint}"
+        method = "{method.upper()}"
+        return self.make_request(method, path, params=params, headers=headers, data=data, auth=auth)
+'''
+    
+    # Write the generated code to the output file
+    with open(output_file, 'w') as f:
+        f.write(code)
+
+# Example usage
+spec_file = 'api_spec.json'  # Replace with the path to your OpenAPI specification file
+output_file = 'api_client.py'  # Replace with the desired output file path
+generate_api_client(spec_file, output_file)
